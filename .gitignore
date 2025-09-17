@@ -1,0 +1,63 @@
+## `rua-winner/.gitignore`
+```gitignore
+# Node / pnpm
+node_modules/
+.pnpm-debug.log*
+npm-debug.log*
+yarn.lock
+package-lock.json
+
+# Turbo / pnpm store
+.turbo/
+.pnpm-store/
+
+# Build outputs
+dist/
+coverage/
+
+# Next.js
+.next/
+out/
+.vercel/
+
+# Logs
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Cache
+.cache/
+.tmp/
+
+# Storybook (if added later)
+.storybook-out/
+storybook-static/
+
+# Desktop (Tauri) future
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/.cargo/
+apps/desktop/dist/
+
+# Mobile (Expo/React Native) future
+.expo/
+.expo-shared/
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+
+/.nvmrc

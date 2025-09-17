@@ -1,0 +1,33 @@
+{
+  "name": "@rua-winner/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@rua-winner/core": "workspace:*",
+    "lucide-react": "0.453.0",
+    "next": "14.2.7",
+    "next-themes": "0.3.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "recharts": "2.12.7",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.2.66",
+    "@types/react-dom": "18.2.22",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.7",
+    "postcss": "8.4.45",
+    "tailwindcss": "3.4.7",
+    "typescript": "5.4.5"
+  }
+}
