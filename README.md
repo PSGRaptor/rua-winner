@@ -34,7 +34,6 @@ rua-winner/
 ├─ tsconfig.base.json # base TS config
 └─ README.md # this file
 
-
 ---
 
 ## 🧰 Tech Stack
