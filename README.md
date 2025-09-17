@@ -61,5 +61,5 @@ rua-winner/
 We use **standard-version** with **Conventional Commits**.  
 Pushing to `main` triggers an automated release commit and tag (e.g., `v0.1.1`).  
 Use `feat:` and `fix:` prefixes to drive version bumps; use `BREAKING CHANGE:` to trigger majors.
-
+ 
 ---
