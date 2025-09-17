@@ -34,7 +34,6 @@ rua-winner/
 ├─ tsconfig.base.json # base TS config
 └─ README.md # this file
 
-
 ---
 
 ## 🧰 Tech Stack
@@ -54,3 +53,13 @@ rua-winner/
 - **pnpm**: 9.x
   ```bash
   npm i -g pnpm
+
+---
+
+## Versioning
+
+We use **standard-version** with **Conventional Commits**.  
+Pushing to `main` triggers an automated release commit and tag (e.g., `v0.1.1`).  
+Use `feat:` and `fix:` prefixes to drive version bumps; use `BREAKING CHANGE:` to trigger majors.
+
+---
