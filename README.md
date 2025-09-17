@@ -22,18 +22,28 @@ RUA Winner is a TypeScript monorepo that delivers EuroJackpot statistics, charts
 ## 🧱 Repository Structure
 
 rua-winner/
-├─ apps/
-│ └─ web/ # Next.js 14 app (SSR/CSR), Recharts, Tailwind, next-themes
-├─ packages/
-│ └─ core/ # Pure TypeScript domain logic (evaluation + analytics helpers)
-├─ tooling/
-│ └─ ci/ # (reserved) CI/CD workflows
-├─ package.json # workspace scripts (Turbo)
-├─ pnpm-workspace.yaml # pnpm workspaces
-├─ turbo.json # Turborepo pipeline config
-├─ tsconfig.base.json # base TS config
-└─ README.md # this file
 
+├─ apps/
+
+│ └─ web/ # Next.js 14 app (SSR/CSR), Recharts, Tailwind, next-themes
+
+├─ packages/
+
+│ └─ core/ # Pure TypeScript domain logic (evaluation + analytics helpers)
+
+├─ tooling/
+
+│ └─ ci/ # (reserved) CI/CD workflows
+
+├─ package.json # workspace scripts (Turbo)
+
+├─ pnpm-workspace.yaml # pnpm workspaces
+
+├─ turbo.json # Turborepo pipeline config
+
+├─ tsconfig.base.json # base TS config
+
+└─ README.md # this file
 
 ---
 
@@ -54,3 +64,13 @@ rua-winner/
 - **pnpm**: 9.x
   ```bash
   npm i -g pnpm
+
+---
+
+## Versioning
+
+We use **standard-version** with **Conventional Commits**.  
+Pushing to `main` triggers an automated release commit and tag (e.g., `v0.1.1`).  
+Use `feat:` and `fix:` prefixes to drive version bumps; use `BREAKING CHANGE:` to trigger majors.
+
+---
