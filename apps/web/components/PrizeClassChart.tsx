@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useData } from "./DataContext";
-import { computePrizeStats, type PrizeClass } from "@rua-winner/core";
+import { computePrizeStats, type PrizeClass, type Draw } from "@rua-winner/core";
 import {
     ResponsiveContainer,
     BarChart,
@@ -19,24 +18,20 @@ function formatEuros(v: number) {
     return v.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 }
 
-export function PrizeClassChart() {
-    const { draws } = useData();
+export function PrizeClassChart({ draws }: { draws: Draw[] }) {
     const [metric, setMetric] = useState<Metric>("count");
 
     const data = useMemo(() => {
         const stats = computePrizeStats(draws);
-        // Recharts prefers plain arrays of objects; include label strings too.
         return stats.map((s) => ({
-            cls: s.cls,
+            cls: s.cls as PrizeClass,
             label: `GKL${s.cls}`,
             count: s.count,
             avg: s.avg
         }));
     }, [draws]);
 
-    const yTickFormatter = (v: number) => {
-        return metric === "count" ? v.toLocaleString() : formatEuros(v);
-    };
+    const yTickFormatter = (v: number) => (metric === "count" ? v.toLocaleString() : formatEuros(v));
 
     return (
         <div className="card p-4">
@@ -61,9 +56,7 @@ export function PrizeClassChart() {
             </div>
 
             {!draws.length ? (
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                    Import data to view prize class distribution.
-                </div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">No data.</div>
             ) : (
                 <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">

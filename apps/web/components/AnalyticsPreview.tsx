@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useData } from "./DataContext";
 import {
     computeMainFrequencies,
     computeEuroFrequencies,
-    computeJackpotSeries
+    computeJackpotSeries,
+    type Draw,
 } from "@rua-winner/core";
 
 import {
@@ -17,15 +18,20 @@ import {
     YAxis,
     Tooltip,
     LineChart,
-    Line
+    Line,
 } from "recharts";
 import { PrizeClassChart } from "./PrizeClassChart";
+import { Heatmaps } from "./Heatmaps";
+import { OverdueChart } from "./OverdueChart";
+import { HeatmapModeProvider } from "./HeatmapMode";
+import SettingsGear from "./SettingsGear";
 
-function TopMainNumbersChart() {
-    const { draws } = useData();
+/** ✅ NEW: Advanced stats panel */
+import { AdvancedAnalytics } from "./AdvancedAnalytics";
+
+function TopMainNumbersChart({ draws }: { draws: Draw[] }) {
     const data = useMemo(() => {
         const freq = computeMainFrequencies(draws);
-        // Top 15 by frequency
         return freq.sort((a, b) => b.freq - a.freq).slice(0, 15);
     }, [draws]);
 
@@ -47,8 +53,7 @@ function TopMainNumbersChart() {
     );
 }
 
-function EuroNumbersChart() {
-    const { draws } = useData();
+function EuroNumbersChart({ draws }: { draws: Draw[] }) {
     const data = useMemo(() => computeEuroFrequencies(draws), [draws]);
 
     return (
@@ -69,8 +74,7 @@ function EuroNumbersChart() {
     );
 }
 
-function JackpotHistoryChart() {
-    const { draws } = useData();
+function JackpotHistoryChart({ draws }: { draws: Draw[] }) {
     const data = useMemo(() => {
         const series = computeJackpotSeries(draws);
         if (series.length > 1200) {
@@ -101,21 +105,94 @@ function JackpotHistoryChart() {
 
 export function AnalyticsPreview() {
     const { draws } = useData();
+
     if (!draws.length) {
         return (
             <div className="text-sm text-slate-600 dark:text-slate-400">
-                Import your dataset to see analytics. (Charts use your full local data.)
+                Import your dataset to see analytics. (Charts use your local data.)
             </div>
         );
     }
+
+    // Slider = "latest N draws" (1..full)
+    const [n, setN] = useState<number>(draws.length);
+    const clamped = Math.max(1, Math.min(n, draws.length));
+
+    const recentDraws = useMemo(() => {
+        // take the last N draws (most recent window)
+        return draws.slice(-clamped);
+    }, [draws, clamped]);
+
+    const fromDate = recentDraws[0]?.drawDate ?? "";
+    const toDate = recentDraws[recentDraws.length - 1]?.drawDate ?? "";
+
+    /** Provider is local to this analytics area only. */
     return (
-        <div className="grid gap-6 md:grid-cols-2">
-            <TopMainNumbersChart />
-            <EuroNumbersChart />
-            <PrizeClassChart />
-            <div className="md:col-span-2">
-                <JackpotHistoryChart />
+        <HeatmapModeProvider>
+            <div className="space-y-6">
+                {/* Sticky scope controller */}
+                <div
+                    className="
+            sticky top-16 z-30
+            backdrop-blur bg-[rgb(var(--bg))]/80
+            border border-slate-200/60 dark:border-slate-700/60
+            shadow-soft rounded-2xl
+            p-4
+          "
+                >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 className="font-semibold">Scope: Latest N Draws</h3>
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm text-slate-600 dark:text-slate-400">
+                                Showing <b>{clamped.toLocaleString()}</b> of {draws.length.toLocaleString()} draws • {fromDate} → {toDate}
+                            </div>
+                            <SettingsGear />
+                        </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-4">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 w-14">1</span>
+                        <input
+                            type="range"
+                            min={1}
+                            max={draws.length}
+                            value={clamped}
+                            onChange={(e) => setN(parseInt(e.target.value, 10))}
+                            className="w-full"
+                        />
+                        <span className="text-xs text-slate-500 dark:text-slate-400 w-14 text-right">
+              {draws.length.toLocaleString()}
+            </span>
+                        <input
+                            type="number"
+                            className="card px-3 py-2 w-24"
+                            min={1}
+                            max={draws.length}
+                            value={clamped}
+                            onChange={(e) => setN(parseInt(e.target.value || "1", 10))}
+                            title="Set exact number of latest draws"
+                        />
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <button className="btn btn-ghost px-2 py-1" onClick={() => setN(50)}>Last 50</button>
+                        <button className="btn btn-ghost px-2 py-1" onClick={() => setN(100)}>Last 100</button>
+                        <button className="btn btn-ghost px-2 py-1" onClick={() => setN(250)}>Last 250</button>
+                        <button className="btn btn-ghost px-2 py-1" onClick={() => setN(draws.length)}>All</button>
+                    </div>
+                </div>
+
+                {/* Existing visuals */}
+                <TopMainNumbersChart draws={recentDraws} />
+                <EuroNumbersChart draws={recentDraws} />
+                <Heatmaps draws={recentDraws} />
+                <PrizeClassChart draws={recentDraws} />
+                <OverdueChart draws={recentDraws} />
+                <JackpotHistoryChart draws={recentDraws} />
+
+                {/* ✅ NEW: Advanced analytics panel */}
+                <AdvancedAnalytics draws={recentDraws} />
             </div>
-        </div>
+        </HeatmapModeProvider>
     );
 }
