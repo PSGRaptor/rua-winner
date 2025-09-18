@@ -3,7 +3,8 @@
 import { ThemeProvider } from "next-themes";
 import { ReactNode } from "react";
 import { DataProvider } from "./DataContext";
-
+import { HeatmapModeProvider } from "./HeatmapMode";
+import { AnalyticsSettingsProvider } from "./AnalyticsSettings";
 
 export function Providers({ children }: { children: ReactNode }) {
     return (
@@ -13,7 +14,13 @@ export function Providers({ children }: { children: ReactNode }) {
             enableSystem
             disableTransitionOnChange
         >
-            <DataProvider>{children}</DataProvider>
+            <DataProvider>
+                <HeatmapModeProvider>
+                    <AnalyticsSettingsProvider>
+                        {children}
+                    </AnalyticsSettingsProvider>
+                </HeatmapModeProvider>
+            </DataProvider>
         </ThemeProvider>
     );
 }

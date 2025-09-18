@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import type { Draw } from "@rua-winner/core";
 import {
     ResponsiveContainer,
@@ -17,6 +17,7 @@ import {
     Cell,
 } from "recharts";
 import { useHeatmapMode } from "./HeatmapMode";
+import { useAnalyticsSettings } from "./AnalyticsSettings"; // ⬅️ NEW
 
 /**
  * AdvancedAnalytics
@@ -31,6 +32,29 @@ import { useHeatmapMode } from "./HeatmapMode";
  */
 
 type RGB = { r: number; g: number; b: number };
+
+/* ---------------- Small Title + Tooltip helper ---------------- */
+function TitleTip({ children, tip }: { children: React.ReactNode; tip: string }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="flex items-center gap-2">
+            <h3 className="font-semibold">{children}</h3>
+            <button
+                type="button"
+                className="text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                onClick={() => setOpen((v) => !v)}
+                title="What is this?"
+            >
+                i
+            </button>
+            {open && (
+                <div className="z-20 absolute mt-8 max-w-sm text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 shadow">
+                    {tip}
+                </div>
+            )}
+        </div>
+    );
+}
 
 /* --------------------------- Utilities & Accessors --------------------------- */
 
@@ -329,8 +353,13 @@ function computeMonthlySeasonal(draws: Draw[]) {
 
 export function AdvancedAnalytics({ draws, domainMax = 50 }: { draws: Draw[]; domainMax?: number }) {
     const { mode } = useHeatmapMode();
+    const { flags } = useAnalyticsSettings(); // ⬅️ NEW
 
-    const freq = useMemo(() => computeFrequencies(draws, domainMax), [draws, domainMax]);
+    const freq = useMemo(() => {
+        const f = new Array(domainMax + 1).fill(0);
+        for (const dr of draws) for (const n of (dr as any).z ?? []) if (n >= 1 && n <= domainMax) f[n]++;
+        return Array.from({ length: domainMax }, (_, i) => ({ num: i + 1, freq: f[i + 1] }));
+    }, [draws, domainMax]);
     const maxFreq = useMemo(() => Math.max(1, ...freq.map(f => f.freq)), [freq]);
     const lastSeen = useMemo(() => computeLastSeen(draws, domainMax), [draws, domainMax]);
     const interArrival = useMemo(() => computeInterArrival(draws, domainMax), [draws, domainMax]);
@@ -362,395 +391,491 @@ export function AdvancedAnalytics({ draws, domainMax = 50 }: { draws: Draw[]; do
     return (
         <div className="space-y-6">
             {/* Last seen / Overdue */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Last Seen / Overdue (by draws since hit)</h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="text-xs text-slate-500">
-                        <tr>
-                            <th className="px-2 py-1 text-left">#</th>
-                            <th className="px-2 py-1 text-left">Draws since</th>
-                            <th className="px-2 py-1 text-left">Spark</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {lastSeen.slice(0, 25).map((x) => (
-                            <tr key={x.num} className="border-t border-slate-200/60 dark:border-slate-700/60">
-                                <td className="px-2 py-1">{x.num}</td>
-                                <td className="px-2 py-1">{x.drawsSince}</td>
-                                <td className="px-2 py-1">
-                                    <div className="h-6 w-40 bg-slate-100 dark:bg-slate-800 rounded">
-                                        <div
-                                            className="h-6 rounded"
-                                            style={{
-                                                width: `${Math.min(100, (freq[x.num - 1]?.freq ?? 0) / maxFreq * 100)}%`,
-                                                background: mapHeatColor((freq[x.num - 1]?.freq ?? 0) / maxFreq, mode),
-                                            }}
-                                        />
-                                    </div>
-                                </td>
+            {flags.overdueTable && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Shows how many draws ago each number last appeared. Higher = more overdue. Spark indicates historical frequency share.">
+                            Last Seen / Overdue (by draws since hit)
+                        </TitleTip>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead className="text-xs text-slate-500">
+                            <tr>
+                                <th className="px-2 py-1 text-left">#</th>
+                                <th className="px-2 py-1 text-left">Draws since</th>
+                                <th className="px-2 py-1 text-left">Spark</th>
                             </tr>
-                        ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                            {lastSeen.slice(0, 25).map((x) => (
+                                <tr key={x.num} className="border-t border-slate-200/60 dark:border-slate-700/60">
+                                    <td className="px-2 py-1">{x.num}</td>
+                                    <td className="px-2 py-1">{x.drawsSince}</td>
+                                    <td className="px-2 py-1">
+                                        <div className="h-6 w-40 bg-slate-100 dark:bg-slate-800 rounded">
+                                            <div
+                                                className="h-6 rounded"
+                                                style={{
+                                                    width: `${Math.min(100, (freq[x.num - 1]?.freq ?? 0) / maxFreq * 100)}%`,
+                                                    background: mapHeatColor((freq[x.num - 1]?.freq ?? 0) / maxFreq, mode),
+                                                }}
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Pairs heatmap + Top list */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Pairs Frequency — Matrix & Top List</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Matrix */}
-                    <div className="col-span-2 overflow-auto">
-                        <div className="inline-grid" style={{ gridTemplateColumns: `repeat(${domainMax}, 14px)` }}>
-                            {Array.from({ length: domainMax }).map((_, i) =>
-                                Array.from({ length: domainMax }).map((__, j) => {
-                                    const a = i + 1, b = j + 1;
-                                    const v = a === b ? 0 : pairMat[a]?.[b] ?? 0;
-                                    const maxV = topPairs.length ? topPairs[0].count : 1;
-                                    const t = maxV > 0 ? v / maxV : 0;
-                                    return (
-                                        <div
-                                            key={`${a}-${b}`}
-                                            className="h-[14px] w-[14px] border border-white/10"
-                                            style={{ backgroundColor: mapHeatColor(t, mode) }}
-                                            title={`${a}-${b}: ${v}`}
-                                        />
-                                    );
-                                })
-                            )}
+            {flags.pairsMatrix && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Matrix of pair co-occurrences among main numbers. Darker = pair seen together more often. Top list shows the strongest pairs.">
+                            Pairs Frequency — Matrix & Top List
+                        </TitleTip>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* Matrix */}
+                        <div className="col-span-2 overflow-auto">
+                            <div className="inline-grid" style={{ gridTemplateColumns: `repeat(${domainMax}, 14px)` }}>
+                                {Array.from({ length: domainMax }).map((_, i) =>
+                                    Array.from({ length: domainMax }).map((__, j) => {
+                                        const a = i + 1, b = j + 1;
+                                        const v = a === b ? 0 : pairMat[a]?.[b] ?? 0;
+                                        const maxV = topPairs.length ? topPairs[0].count : 1;
+                                        const t = maxV > 0 ? v / maxV : 0;
+                                        return (
+                                            <div
+                                                key={`${a}-${b}`}
+                                                className="h-[14px] w-[14px] border border-white/10"
+                                                style={{ backgroundColor: mapHeatColor(t, mode) }}
+                                                title={`${a}-${b}: ${v}`}
+                                            />
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                        {/* Top list */}
+                        <div>
+                            <ol className="text-sm space-y-1">
+                                {topPairs.slice(0, 30).map((p, idx) => (
+                                    <li key={`${p.a}-${p.b}`} className="flex items-center gap-2">
+                                        <span className="text-slate-400 w-5">{idx + 1}.</span>
+                                        <span className="w-16">#{p.a}-#{p.b}</span>
+                                        <span className="text-slate-500">{p.count}</span>
+                                    </li>
+                                ))}
+                            </ol>
                         </div>
                     </div>
-                    {/* Top list */}
-                    <div>
-                        <ol className="text-sm space-y-1">
-                            {topPairs.slice(0, 30).map((p, idx) => (
-                                <li key={`${p.a}-${p.b}`} className="flex items-center gap-2">
-                                    <span className="text-slate-400 w-5">{idx + 1}.</span>
-                                    <span className="w-16">#{p.a}-#{p.b}</span>
-                                    <span className="text-slate-500">{p.count}</span>
-                                </li>
-                            ))}
-                        </ol>
-                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Triplets table */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Triplets Frequency — Top 50</h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="text-xs text-slate-500">
-                        <tr><th className="px-2 py-1 text-left">Triplet</th><th className="px-2 py-1 text-left">Count</th></tr>
-                        </thead>
-                        <tbody>
-                        {topTriplets.map((t) => (
-                            <tr key={t.key} className="border-t border-slate-200/60 dark:border-slate-700/60">
-                                <td className="px-2 py-1">{t.key}</td>
-                                <td className="px-2 py-1">{t.count}</td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
+            {flags.tripletsTable && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Most frequent triplets of main numbers across the selected window.">
+                            Triplets Frequency — Top 50
+                        </TitleTip>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead className="text-xs text-slate-500">
+                            <tr><th className="px-2 py-1 text-left">Triplet</th><th className="px-2 py-1 text-left">Count</th></tr>
+                            </thead>
+                            <tbody>
+                            {topTriplets.map((t) => (
+                                <tr key={t.key} className="border-t border-slate-200/60 dark:border-slate-700/60">
+                                    <td className="px-2 py-1">{t.key}</td>
+                                    <td className="px-2 py-1">{t.count}</td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Co-occurrence network (radial layout) */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Co-occurrence Network (Top links)</h3>
-                <div className="overflow-x-auto">
-                    <svg width={360} height={360} className="block mx-auto">
-                        {/* edges */}
-                        {network.edges.map((e, idx) => {
-                            const A = network.nodes[e.a - 1], B = network.nodes[e.b - 1];
-                            const t = e.w / Math.max(1, network.maxW);
-                            return (
-                                <line
-                                    key={idx}
-                                    x1={A.x} y1={A.y} x2={B.x} y2={B.y}
-                                    stroke={mapHeatColor(t, mode)}
-                                    strokeWidth={1 + 3 * t}
-                                    strokeOpacity={0.85}
-                                />
-                            );
-                        })}
-                        {/* nodes */}
-                        {network.nodes.map((n) => {
-                            const t = n.deg / Math.max(1, network.maxDeg);
-                            return (
-                                <g key={n.id}>
-                                    <circle cx={n.x} cy={n.y} r={6 + 6 * t} fill={mapHeatColor(t, mode)} />
-                                    <text x={n.x} y={n.y + 3} textAnchor="middle" fontSize={10} fill="#111" className="dark:fill-white">
-                                        {n.id}
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </svg>
-                </div>
-                <div className="text-xs text-slate-500">Link width ~ pair strength; node size ~ degree.</div>
-            </div>
-
-            {/* Consecutive runs */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Consecutive Runs (e.g., 12–13)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                        <div className="text-sm">Total consecutive pairs: <b>{consecutive.totalPairs}</b></div>
-                        <div className="mt-2 grid grid-cols-6 gap-1">
-                            {Object.entries(consecutive.counts).slice(0, 60).map(([pair, c]) => (
-                                <div key={pair} className="h-8 rounded text-xs flex items-center justify-center border border-slate-200/60 dark:border-slate-700/60"
-                                     style={{ backgroundColor: mapHeatColor(c / Math.max(1, consecutive.totalPairs), mode) }}
-                                     title={`${pair}: ${c}`}>
-                                    {pair}<span className="ml-1 text-slate-500">({c})</span>
-                                </div>
-                            ))}
-                        </div>
+            {flags.cooccurNet && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Network view of strongest number co-occurrences. Edge width = pair strength; node size = total connections (degree).">
+                            Co-occurrence Network (Top links)
+                        </TitleTip>
                     </div>
-                    <div>
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={Object.entries(consecutive.counts).map(([k, v]) => ({ pair: k, count: v }))}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                    <XAxis dataKey="pair" interval={0} hide />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="count" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Sum + rolling mean */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Sum of Main Numbers — Trend & Rolling Mean</h3>
-                <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={sums.map((s, i) => ({ date: s.date, sum: s.sum, mean50: mean50[i], mean100: mean100[i] }))}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="date" minTickGap={24} />
-                            <YAxis />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="sum" dot={false} />
-                            <Line type="monotone" dataKey="mean50" dot={false} strokeOpacity={0.8} />
-                            <Line type="monotone" dataKey="mean100" dot={false} strokeOpacity={0.6} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Range */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Range (max–min) — Histogram</h3>
-                <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ranges.map((r) => ({ range: r.range }))}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="range" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="range" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Low/High split – stacked */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Low/High Split (1–25 vs 26–50)</h3>
-                <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={lowHigh}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="date" hide />
-                            <YAxis allowDecimals={false} />
-                            <Tooltip />
-                            <Bar dataKey="low" stackId="a" />
-                            <Bar dataKey="high" stackId="a" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Parity split – donut */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Parity Split (Odd / Even)</h3>
-                <div className="h-60">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={[
-                                    { name: "Odd", value: oddTotal },
-                                    { name: "Even", value: evenTotal },
-                                ]}
-                                dataKey="value"
-                                nameKey="name"
-                                innerRadius="55%"
-                                outerRadius="80%"
-                            >
-                                <Cell />
-                                <Cell />
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Last digit */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Last-Digit Distribution (0–9)</h3>
-                <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={lastDigit}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="digit" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="count" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Modulo classes */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Modulo Classes (mod 5, 7, 10)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {[{ title: "mod 5", data: mod5, x: "r" }, { title: "mod 7", data: mod7, x: "r" }, { title: "mod 10", data: mod10, x: "r" }].map((g) => (
-                        <div key={g.title} className="h-60">
-                            <div className="text-sm font-medium mb-1">{g.title}</div>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={g.data}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                    <XAxis dataKey={g.x} />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="count" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Position bias heatmap */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Number Position Bias (sorted positions)</h3>
-                <div className="overflow-x-auto">
-                    <div className="inline-grid" style={{ gridTemplateColumns: `repeat(${domainMax}, 14px)` }}>
-                        {posBias.map((row, pos) =>
-                            row.slice(1).map((t, idx) => {
-                                const num = idx + 1;
+                    <div className="overflow-x-auto">
+                        <svg width={360} height={360} className="block mx-auto">
+                            {/* edges */}
+                            {network.edges.map((e, idx) => {
+                                const A = network.nodes[e.a - 1], B = network.nodes[e.b - 1];
+                                const t = e.w / Math.max(1, network.maxW);
                                 return (
-                                    <div
-                                        key={`${pos}-${num}`}
-                                        className="h-[14px] w-[14px] border border-white/10"
-                                        style={{ backgroundColor: mapHeatColor(t, mode) }}
-                                        title={`pos ${pos + 1} • #${num} : ${(t * 100).toFixed(1)}% of row max`}
+                                    <line
+                                        key={idx}
+                                        x1={A.x} y1={A.y} x2={B.x} y2={B.y}
+                                        stroke={mapHeatColor(t, mode)}
+                                        strokeWidth={1 + 3 * t}
+                                        strokeOpacity={0.85}
                                     />
                                 );
-                            })
-                        )}
+                            })}
+                            {/* nodes */}
+                            {network.nodes.map((n) => {
+                                const t = n.deg / Math.max(1, network.maxDeg);
+                                return (
+                                    <g key={n.id}>
+                                        <circle cx={n.x} cy={n.y} r={6 + 6 * t} fill={mapHeatColor(t, mode)} />
+                                        <text x={n.x} y={n.y + 3} textAnchor="middle" fontSize={10} fill="#111" className="dark:fill-white">
+                                            {n.id}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
                     </div>
+                    <div className="text-xs text-slate-500">Link width ~ pair strength; node size ~ degree.</div>
                 </div>
-                <div className="text-xs text-slate-500 mt-1">Rows are positions 1..5 (ascending sort) • each row normalized independently.</div>
-            </div>
+            )}
 
-            {/* Weekday effect */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Weekday Effect (Tue vs Fri)</h3>
-                <div className="flex items-center gap-2 text-sm">
-                    <span>Significance: </span>
-                    {weekday.badge === "likely" ? (
-                        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">likely</span>
-                    ) : (
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">ns</span>
-                    )}
-                </div>
-                <div className="h-64 mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={weekday.items}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="weekday" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="count" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Monthly seasonal */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Monthly / Seasonal Pattern</h3>
-                <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={monthly}>
-                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                            <XAxis dataKey="month" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="count" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Streaks: hot/cold run lengths */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Streaks — Hot/Cold Run Lengths</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[{ title: "Hot runs", arr: streaks.hotRuns }, { title: "Cold runs", arr: streaks.coldRuns }].map((g) => {
-                        const hist = Object.entries(g.arr.reduce<Record<number, number>>((m, v) => (m[v] = (m[v] ?? 0) + 1, m), {}))
-                            .map(([k, v]) => ({ len: Number(k), count: v }))
-                            .sort((a, b) => a.len - b.len);
-                        return (
-                            <div key={g.title} className="h-64">
-                                <div className="text-sm font-medium mb-1">{g.title}</div>
+            {/* Consecutive runs */}
+            {flags.consecutive && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Counts of consecutive pairs (e.g., 12–13) observed in draws; heatmap chips and a bar chart summary.">
+                            Consecutive Runs (e.g., 12–13)
+                        </TitleTip>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div>
+                            <div className="text-sm">Total consecutive pairs: <b>{consecutive.totalPairs}</b></div>
+                            <div className="mt-2 grid grid-cols-6 gap-1">
+                                {Object.entries(consecutive.counts).slice(0, 60).map(([pair, c]) => (
+                                    <div key={pair} className="h-8 rounded text-xs flex items-center justify-center border border-slate-200/60 dark:border-slate-700/60"
+                                         style={{ backgroundColor: mapHeatColor(c / Math.max(1, consecutive.totalPairs), mode) }}
+                                         title={`${pair}: ${c}`}>
+                                        {pair}<span className="ml-1 text-slate-500">({c})</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={hist}>
+                                    <BarChart data={Object.entries(consecutive.counts).map(([k, v]) => ({ pair: k, count: v }))}>
                                         <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                        <XAxis dataKey="len" />
+                                        <XAxis dataKey="pair" interval={0} hide />
                                         <YAxis />
                                         <Tooltip />
                                         <Bar dataKey="count" />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                        );
-                    })}
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* Sum + rolling mean */}
+            {flags.sumTrend && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Sum of the five main numbers per draw, with rolling means (50/100) to show trend shifts.">
+                            Sum of Main Numbers — Trend & Rolling Mean
+                        </TitleTip>
+                    </div>
+                    <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={sums.map((s, i) => ({ date: s.date, sum: s.sum, mean50: mean50[i], mean100: mean100[i] }))}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="date" minTickGap={24} />
+                                <YAxis />
+                                <Tooltip />
+                                <Line type="monotone" dataKey="sum" dot={false} />
+                                <Line type="monotone" dataKey="mean50" dot={false} strokeOpacity={0.8} />
+                                <Line type="monotone" dataKey="mean100" dot={false} strokeOpacity={0.6} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Range */}
+            {flags.rangeHist && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Distribution of ranges (max − min) across draws. Indicates spread/compactness of results.">
+                            Range (max–min) — Histogram
+                        </TitleTip>
+                    </div>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={ranges.map((r) => ({ range: r.range }))}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="range" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="range" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Low/High split – stacked */}
+            {flags.lowHigh && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Per-draw counts in low (1–25) vs high (26–50) buckets, stacked to show balance over time.">
+                            Low/High Split (1–25 vs 26–50)
+                        </TitleTip>
+                    </div>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={lowHigh}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="date" hide />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip />
+                                <Bar dataKey="low" stackId="a" />
+                                <Bar dataKey="high" stackId="a" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Parity split – donut */}
+            {flags.parity && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Overall odd vs even composition aggregated over the selected draws.">
+                            Parity Split (Odd / Even)
+                        </TitleTip>
+                    </div>
+                    <div className="h-60">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={[
+                                        { name: "Odd", value: oddTotal },
+                                        { name: "Even", value: evenTotal },
+                                    ]}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    innerRadius="55%"
+                                    outerRadius="80%"
+                                >
+                                    <Cell />
+                                    <Cell />
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Last digit */}
+            {flags.lastDigit && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Frequency of last digits (0–9) among main numbers. Useful for spotting digit biases.">
+                            Last-Digit Distribution (0–9)
+                        </TitleTip>
+                    </div>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={lastDigit}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="digit" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="count" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Modulo classes */}
+            {flags.modulo && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Residue class counts for mod 5, 7, and 10. Highlights cyclical/bucketed patterns.">
+                            Modulo Classes (mod 5, 7, 10)
+                        </TitleTip>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[{ title: "mod 5", data: mod5, x: "r" }, { title: "mod 7", data: mod7, x: "r" }, { title: "mod 10", data: mod10, x: "r" }].map((g) => (
+                            <div key={g.title} className="h-60">
+                                <div className="text-sm font-medium mb-1">{g.title}</div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={g.data}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                        <XAxis dataKey={g.x} />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="count" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Position bias heatmap */}
+            {flags.posBias && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Heatmap of normalized frequency by sorted position (1=smallest … 5=largest).">
+                            Number Position Bias (sorted positions)
+                        </TitleTip>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <div className="inline-grid" style={{ gridTemplateColumns: `repeat(${domainMax}, 14px)` }}>
+                            {posBias.map((row, pos) =>
+                                row.slice(1).map((t, idx) => {
+                                    const num = idx + 1;
+                                    return (
+                                        <div
+                                            key={`${pos}-${num}`}
+                                            className="h-[14px] w-[14px] border border-white/10"
+                                            style={{ backgroundColor: mapHeatColor(t, mode) }}
+                                            title={`pos ${pos + 1} • #${num} : ${(t * 100).toFixed(1)}% of row max`}
+                                        />
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Rows are positions 1..5 (ascending sort) • each row normalized independently.</div>
+                </div>
+            )}
+
+            {/* Weekday effect */}
+            {flags.weekdayEffect && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Counts per weekday (typically Tue/Fri). Badge is a quick heuristic on whether differences are notable.">
+                            Weekday Effect (Tue vs Fri)
+                        </TitleTip>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                        <span>Significance: </span>
+                        {weekday.badge === "likely" ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">likely</span>
+                        ) : (
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">ns</span>
+                        )}
+                    </div>
+                    <div className="h-64 mt-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={weekday.items}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="weekday" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="count" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Monthly seasonal */}
+            {flags.monthlySeasonal && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Total draw counts aggregated by calendar month to spot seasonal rhythms.">
+                            Monthly / Seasonal Pattern
+                        </TitleTip>
+                    </div>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthly}>
+                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                <XAxis dataKey="month" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="count" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Streaks: hot/cold run lengths */}
+            {flags.streaks && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Run-length histograms for ‘hot’ (consecutive hits) and ‘cold’ (consecutive misses) streaks per number.">
+                            Streaks — Hot/Cold Run Lengths
+                        </TitleTip>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[{ title: "Hot runs", arr: streaks.hotRuns }, { title: "Cold runs", arr: streaks.coldRuns }].map((g) => {
+                            const hist = Object.entries(g.arr.reduce<Record<number, number>>((m, v) => (m[v] = (m[v] ?? 0) + 1, m), {}))
+                                .map(([k, v]) => ({ len: Number(k), count: v }))
+                                .sort((a, b) => a.len - b.len);
+                            return (
+                                <div key={g.title} className="h-64">
+                                    <div className="text-sm font-medium mb-1">{g.title}</div>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={hist}>
+                                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                            <XAxis dataKey="len" />
+                                            <YAxis />
+                                            <Tooltip />
+                                            <Bar dataKey="count" />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Inter-arrival aggregate */}
-            <div className="card p-4">
-                <h3 className="font-semibold mb-2">Inter-Arrival Times — Aggregate Histogram</h3>
-                <div className="h-64">
-                    {(() => {
-                        const gaps: Record<number, number> = {};
-                        for (const arr of Object.values(interArrival)) for (const g of arr) gaps[g] = (gaps[g] ?? 0) + 1;
-                        const data = Object.entries(gaps)
-                            .map(([gap, count]) => ({ gap: Number(gap), count }))
-                            .filter(d => d.gap <= 50)
-                            .sort((a, b) => a.gap - b.gap);
-                        return (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={data}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                    <XAxis dataKey="gap" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="count" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        );
-                    })()}
+            {flags.interArrival && (
+                <div className="card p-4 relative">
+                    <div className="mb-2">
+                        <TitleTip tip="Histogram of gaps (in draws) between repeated hits for the same number, pooled over all numbers.">
+                            Inter-Arrival Times — Aggregate Histogram
+                        </TitleTip>
+                    </div>
+                    <div className="h-64">
+                        {(() => {
+                            const gaps: Record<number, number> = {};
+                            for (const arr of Object.values(interArrival)) for (const g of arr) gaps[g] = (gaps[g] ?? 0) + 1;
+                            const data = Object.entries(gaps)
+                                .map(([gap, count]) => ({ gap: Number(gap), count }))
+                                .filter(d => d.gap <= 50)
+                                .sort((a, b) => a.gap - b.gap);
+                            return (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={data}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                        <XAxis dataKey="gap" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="count" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            );
+                        })()}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
