@@ -1,3 +1,4 @@
+// START OF FILE: apps/web/src/components/NumberEvaluator.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -5,10 +6,21 @@ import {
     evaluateNumbers,
     type Draw,
     ALL_CLASSES,
-    type PrizeClass
+    type PrizeClass,
 } from "@rua-winner/core";
 import { Check } from "lucide-react";
 import { useData } from "./DataContext";
+
+/**
+ * Shared EUR formatter: app deals in Euros only.
+ * Using de-DE for typical Euro formatting (e.g., 1.234,56 €)
+ * If you prefer a different locale, adjust here globally.
+ */
+const EUR = new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+});
 
 // Fallback sample to demonstrate UI when no data imported yet
 const SAMPLE_DRAWS: Draw[] = [
@@ -28,8 +40,8 @@ const SAMPLE_DRAWS: Draw[] = [
             9: 18.9,
             10: 15.2,
             11: 15.2,
-            12: 10.0
-        }
+            12: 10.0,
+        },
     },
     {
         drawDate: "2025-09-05",
@@ -47,9 +59,9 @@ const SAMPLE_DRAWS: Draw[] = [
             9: 21.1,
             10: 16.6,
             11: 15.6,
-            12: 10.5
-        }
-    }
+            12: 10.5,
+        },
+    },
 ];
 
 function clampArray(initial: number[], min: number, max: number, size: number) {
@@ -61,7 +73,7 @@ export function NumberEvaluator() {
     const sourceDraws = draws.length ? draws : SAMPLE_DRAWS;
 
     const [main, setMain] = useState<[number, number, number, number, number]>([
-        1, 2, 3, 4, 5
+        1, 2, 3, 4, 5,
     ]);
     const [euro, setEuro] = useState<[number, number]>([1, 2]);
 
@@ -83,7 +95,8 @@ export function NumberEvaluator() {
         <div className="space-y-4">
             {!draws.length && (
                 <div className="text-sm text-slate-600 dark:text-slate-400">
-                    No data imported yet — showing a small sample for demo. Import your dataset in the left panel to evaluate against full history.
+                    No data imported yet — showing a small sample for demo. Import your dataset in
+                    the left panel to evaluate against full history.
                 </div>
             )}
 
@@ -97,13 +110,7 @@ export function NumberEvaluator() {
                         max={50}
                         value={n}
                         onChange={(e) => {
-                            const next = [...main] as [
-                                number,
-                                number,
-                                number,
-                                number,
-                                number
-                            ];
+                            const next = [...main] as [number, number, number, number, number];
                             next[i] = parseInt(e.target.value || "0", 10);
                             setMain(clampArray(next, 1, 50, 5));
                         }}
@@ -142,8 +149,8 @@ export function NumberEvaluator() {
                     <tr className="text-left">
                         <th className="p-2">Class</th>
                         <th className="p-2">Hits</th>
-                        <th className="p-2">Total €</th>
-                        <th className="p-2">Avg €</th>
+                        <th className="p-2">Total (€)</th>
+                        <th className="p-2">Avg (€)</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -158,16 +165,8 @@ export function NumberEvaluator() {
                             >
                                 <td className="p-2 font-medium">GKL{k}</td>
                                 <td className="p-2">{hits}</td>
-                                <td className="p-2">
-                                    {total.toLocaleString(undefined, {
-                                        maximumFractionDigits: 2
-                                    })}
-                                </td>
-                                <td className="p-2">
-                                    {avg.toLocaleString(undefined, {
-                                        maximumFractionDigits: 2
-                                    })}
-                                </td>
+                                <td className="p-2">{EUR.format(total)}</td>
+                                <td className="p-2">{EUR.format(avg)}</td>
                             </tr>
                         );
                     })}
@@ -176,11 +175,7 @@ export function NumberEvaluator() {
                     <tr className="border-t border-slate-200/60 dark:border-slate-700/60">
                         <td className="p-2 font-semibold">Total</td>
                         <td className="p-2"></td>
-                        <td className="p-2 font-semibold">
-                            {result.grandTotal.toLocaleString(undefined, {
-                                maximumFractionDigits: 2
-                            })}
-                        </td>
+                        <td className="p-2 font-semibold">{EUR.format(result.grandTotal ?? 0)}</td>
                         <td className="p-2"></td>
                     </tr>
                     </tfoot>
@@ -193,3 +188,4 @@ export function NumberEvaluator() {
         </div>
     );
 }
+// END OF FILE: apps/web/src/components/NumberEvaluator.tsx

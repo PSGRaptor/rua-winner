@@ -1,3 +1,4 @@
+// START OF FILE: apps/web/components/DataImporter.tsx
 "use client";
 
 import { useRef, useState } from "react";
@@ -32,6 +33,34 @@ function toISODate(v: any): string {
         }
     }
     throw new Error(`Unrecognized date: ${String(v)}`);
+}
+
+// --- New: local parsers to normalize API-returned gkl (no extra files) ---
+function parseEuroLike(v: unknown): number {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (v == null) return 0;
+    let s = String(v).trim();
+    if (!s) return 0;
+    s = s.replace(/[€\s\u00A0\u202F]/g, "");
+    if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, "");
+    else if (s.includes(",") && !s.includes(".")) s = s.replace(",", ".");
+    s = s.replace(/[^\d.\-]/g, "");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeReturnedDraw(d: any): Draw {
+    // Coerce gkl values to numbers in case server sent strings
+    const gkl: Record<PrizeClass, number> = {} as any;
+    for (let k = 1 as PrizeClass; k <= 12; k = (k + 1) as PrizeClass) {
+        gkl[k] = parseEuroLike(d?.gkl?.[k]);
+    }
+    return {
+        drawDate: d.drawDate,
+        z: d.z as [number, number, number, number, number],
+        e: d.e as [number, number],
+        gkl,
+    };
 }
 
 function parseRows(rows: RawRow[]): Draw[] {
@@ -113,7 +142,7 @@ function parseRows(rows: RawRow[]): Draw[] {
             throw new Error(`Invalid euro numbers at ${drawDate}`);
         }
 
-        draws.push({ drawDate, z, e, gkl });
+        draws.push({ drawDate, z, e, gkl: gkl as Record<PrizeClass, number> });
     }
 
     // sort by date ascending
@@ -136,8 +165,9 @@ export function DataImporter() {
             const msg = await res.text().catch(() => res.statusText);
             throw new Error(`Parquet parse failed: ${msg}`);
         }
-        const { draws } = (await res.json()) as { draws: Draw[] };
-        return draws;
+        // We expect { draws: Draw[] }, but we normalize just in case server sends strings in gkl.
+        const payload = (await res.json()) as { draws: any[] };
+        return payload.draws.map(normalizeReturnedDraw) as Draw[];
     }
 
     const handleFile = async (file: File) => {
@@ -147,7 +177,7 @@ export function DataImporter() {
 
             const lower = file.name.toLowerCase();
 
-            // --- NEW: local parquet path (server parses and normalizes) ---
+            // --- Parquet path (server parses, we normalize gkl values) ---
             if (lower.endsWith(".parquet")) {
                 const parsed = await parseParquetOnServer(file);
                 const min = parsed[0]?.drawDate ?? "";
@@ -161,7 +191,7 @@ export function DataImporter() {
                 return;
             }
 
-            // --- Existing XLSX/XLS/CSV path (unchanged) ---
+            // --- XLSX/XLS/CSV path (unchanged) ---
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(buf, { type: "array" });
             const sheetName = wb.SheetNames[0];
@@ -227,3 +257,4 @@ export function DataImporter() {
         </div>
     );
 }
+// END OF FILE: apps/web/components/DataImporter.tsx

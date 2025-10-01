@@ -1,58 +1,165 @@
-// app/api/parse-parquet/route.ts
-import { NextResponse } from "next/server";
+// START OF FILE: apps/web/src/app/api/parse-parquet/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { ParquetReader } from "parquetjs-lite";
 
-export const runtime = "nodejs"; // ensure Node runtime (parquetjs-lite needs Node)
-
+// Keep types in-line to avoid importing new helpers/files
+type PrizeClass = 1|2|3|4|5|6|7|8|9|10|11|12;
 type Draw = {
     drawDate: string;
-    z: number[];
-    e: number[];
-    gkl?: number;
+    z: [number, number, number, number, number];
+    e: [number, number];
+    gkl: Record<PrizeClass, number>;
 };
 
-// POST: multipart/form-data with "file": <.parquet>
-export async function POST(req: Request) {
-    const form = await req.formData();
-    const file = form.get("file") as File | null;
-    if (!file) {
-        return NextResponse.json({ error: "file is required" }, { status: 400 });
+// --- Robust EU-currency / numeric parser ---
+function parseEuroLike(v: unknown): number {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (v == null) return 0;
+    let s = String(v).trim();
+    if (!s) return 0;
+    // remove € and spaces (incl NBSP & thin)
+    s = s.replace(/[€\s\u00A0\u202F]/g, "");
+    // if both , and . exist, assume , were thousands
+    if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, "");
+    else if (s.includes(",") && !s.includes(".")) s = s.replace(",", ".");
+    // strip everything but digits, sign, dot
+    s = s.replace(/[^\d.\-]/g, "");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function toISODate(d: unknown): string {
+    if (typeof d === "string") {
+        const s = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (m) {
+            const dd = m[1].padStart(2, "0");
+            const mm = m[2].padStart(2, "0");
+            return `${m[3]}-${mm}-${dd}`;
+        }
+        const dd = new Date(s);
+        if (!Number.isNaN(+dd)) {
+            const y = dd.getFullYear();
+            const mo = String(dd.getMonth() + 1).padStart(2, "0");
+            const d2 = String(dd.getDate()).padStart(2, "0");
+            return `${y}-${mo}-${d2}`;
+        }
     }
+    if (typeof d === "number" && Number.isFinite(d)) {
+        // Excel serial date → ISO (1900 system)
+        const base = new Date(Date.UTC(1899, 11, 30));
+        const dt = new Date(base.getTime() + d * 86400000);
+        const y = dt.getUTCFullYear();
+        const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(dt.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    }
+    return "";
+}
 
-    const buf = Buffer.from(await file.arrayBuffer());
-
-    // Lazy import to keep cold start lean
-    const parquet = await import("parquetjs-lite");
-    const reader = await parquet.ParquetReader.openBuffer(buf);
-    const cursor = reader.getCursor();
-
-    const out: Draw[] = [];
-    for (let rec = (await cursor.next()) as any; rec; rec = await cursor.next()) {
-        // Accept either normalized (drawDate, z1..z5, e1..e2, gkl)
-        // or raw headers (Datum, Z1..Z5, E1..E2, GKL1)
-        const drawDate = (rec.drawDate ?? rec.Datum ?? rec.date)?.toString();
-
-        const z = [
-            rec.z1 ?? rec.Z1,
-            rec.z2 ?? rec.Z2,
-            rec.z3 ?? rec.Z3,
-            rec.z4 ?? rec.Z4,
-            rec.z5 ?? rec.Z5,
-        ]
-            .map((n: any) => (n == null ? null : Number(n)))
-            .filter((n: number | null): n is number => n != null);
-
-        const e = [rec.e1 ?? rec.E1, rec.e2 ?? rec.E2]
-            .filter((x: any) => x != null)
-            .map((x: any) => Number(x));
-
-        const gklRaw = rec.gkl ?? rec.GKL1;
-        const gkl = gklRaw != null ? Number(gklRaw) : undefined;
-
-        if (drawDate && z.length === 5 && e.length >= 1) {
-            out.push({ drawDate, z, e, gkl });
+function buildGkl(row: Record<string, any>): Record<PrizeClass, number> {
+    // Prefer compact JSON map if provided by converter
+    const gj = row["gkl_json"] ?? row["GKL_JSON"] ?? row["GklJson"] ?? row["Gkl_JSON"];
+    if (gj) {
+        try {
+            const parsed = typeof gj === "string" ? JSON.parse(gj) : gj;
+            const out = {} as Record<PrizeClass, number>;
+            for (let k = 1 as PrizeClass; k <= 12; k = (k + 1) as PrizeClass) {
+                out[k] = parseEuroLike(parsed[String(k)]);
+            }
+            return out;
+        } catch {
+            // fall through to column-based mapping
         }
     }
 
-    await reader.close();
-    return NextResponse.json({ draws: out });
+    // Map GKL1..GKL12 (accept common variations)
+    const out = {} as Record<PrizeClass, number>;
+    for (let k = 1 as PrizeClass; k <= 12; k = (k + 1) as PrizeClass) {
+        const variants = [
+            `GKL${k}`, `GKL ${k}`, `GK${k}`, `GK ${k}`,
+            `Gewinnklasse${k}`, `Gewinnklasse ${k}`,
+            `gkl${k}`, `gkl ${k}`, `gk${k}`, `gk ${k}`,
+        ];
+        let val: any;
+        for (const key of Object.keys(row)) {
+            if (variants.some(v => v.toLowerCase() === key.toLowerCase())) {
+                val = row[key];
+                break;
+            }
+        }
+        out[k] = parseEuroLike(val);
+    }
+    return out;
 }
+
+function rowToDraw(row: Record<string, any>): Draw {
+    const drawDate =
+        toISODate(row.drawDate ?? row.Datum ?? row.date ?? row["Draw Date"] ?? row["draw_date"]);
+
+    const pickInt = (name: string) => {
+        const v = row[name] ?? row[name.toUpperCase()] ?? row[name.toLowerCase()];
+        const n = parseEuroLike(v);
+        return Math.max(0, Math.round(n));
+    };
+
+    const z = [
+        pickInt("z1") || pickInt("Z1"),
+        pickInt("z2") || pickInt("Z2"),
+        pickInt("z3") || pickInt("Z3"),
+        pickInt("z4") || pickInt("Z4"),
+        pickInt("z5") || pickInt("Z5"),
+    ].map(n => Math.min(Math.max(n, 1), 50)) as [number, number, number, number, number];
+
+    const e = [
+        pickInt("e1") || pickInt("E1"),
+        pickInt("e2") || pickInt("E2"),
+    ].map(n => Math.min(Math.max(n, 1), 12)) as [number, number];
+
+    const gkl = buildGkl(row);
+
+    return { drawDate, z, e, gkl };
+}
+
+function isValidDraw(d: Draw): boolean {
+    return Boolean(
+        d.drawDate &&
+        d.z.length === 5 &&
+        d.e.length === 2 &&
+        d.z.every(n => Number.isFinite(n)) &&
+        d.e.every(n => Number.isFinite(n))
+    );
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const form = await req.formData();
+        const file = form.get("file");
+        if (!(file instanceof Blob)) {
+            return NextResponse.json({ error: "No file" }, { status: 400 });
+        }
+        const buf = Buffer.from(await file.arrayBuffer());
+
+        // Read Parquet rows
+        const reader = await ParquetReader.openBuffer(buf);
+        const cursor = await reader.getCursor();
+        const rows: any[] = [];
+        for (let row = await cursor.next(); row; row = await cursor.next()) {
+            rows.push(row);
+        }
+        await reader.close();
+
+        // Normalize to Draws (including € gkl map)
+        const draws = rows.map(rowToDraw).filter(isValidDraw);
+
+        // Sort ascending by date to keep app semantics stable
+        draws.sort((a, b) => a.drawDate.localeCompare(b.drawDate));
+
+        return NextResponse.json({ draws, count: draws.length }, { status: 200 });
+    } catch (e: any) {
+        console.error("parse-parquet error:", e);
+        return NextResponse.json({ error: e?.message || "Failed to parse parquet" }, { status: 500 });
+    }
+}
+// END OF FILE: apps/web/src/app/api/parse-parquet/route.ts

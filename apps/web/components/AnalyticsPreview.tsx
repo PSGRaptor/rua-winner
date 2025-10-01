@@ -1,3 +1,4 @@
+// START OF FILE: apps/web/src/components/AnalyticsPreview.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -12,7 +13,15 @@ import {
 } from "@rua-winner/core";
 
 import {
-    ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, LineChart, Line,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    CartesianGrid,
+    XAxis,
+    YAxis,
+    Tooltip,
+    LineChart,
+    Line,
 } from "recharts";
 import { PrizeClassChart } from "./PrizeClassChart";
 import { Heatmaps } from "./Heatmaps";
@@ -98,9 +107,7 @@ function JackpotHistoryChart({ draws }: { draws: Draw[] }) {
 
     return (
         <div className="card p-4">
-            <TitleTip tip="Jackpot (GKL1) values over time.">
-                Jackpot (GKL1) Over Time
-            </TitleTip>
+            <TitleTip tip="Jackpot (GKL1) values over time.">Jackpot (GKL1) Over Time</TitleTip>
             <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data}>
@@ -120,10 +127,27 @@ function JackpotHistoryChart({ draws }: { draws: Draw[] }) {
 function PreviewBody({ draws }: { draws: Draw[] }) {
     const { flags } = useAnalyticsSettings();
 
-    // Slider = "latest N draws"
-    const [n, setN] = useState<number>(draws.length);
-    const clamped = Math.max(1, Math.min(n, draws.length));
-    const recentDraws = useMemo(() => draws.slice(-clamped), [draws, clamped]);
+    /**
+     * ✅ IMPORTANT: Always normalize to ascending (oldest -> newest).
+     * Some sources deliver newest-first; previously, slice(-N) on a newest-first array
+     * effectively returned the OLDEST N. Sorting by drawDate ascending guarantees that
+     * "Latest N" below truly selects the most recent N entries with slice(-N).
+     */
+    const sortedAsc = useMemo(() => {
+        // Defensive: ensure stable copy, guard against malformed dates
+        return [...draws].sort((a, b) => {
+            const da = a.drawDate ?? "";
+            const db = b.drawDate ?? "";
+            // ISO yyyy-mm-dd sorts lexicographically, fallback to string compare
+            return da.localeCompare(db);
+        });
+    }, [draws]);
+
+    // Slider = "latest N draws" (from the normalized ascending array)
+    const [n, setN] = useState<number>(sortedAsc.length);
+    const clamped = Math.max(1, Math.min(n, sortedAsc.length));
+
+    const recentDraws = useMemo(() => sortedAsc.slice(-clamped), [sortedAsc, clamped]);
 
     const fromDate = recentDraws[0]?.drawDate ?? "";
     const toDate = recentDraws[recentDraws.length - 1]?.drawDate ?? "";
@@ -136,7 +160,8 @@ function PreviewBody({ draws }: { draws: Draw[] }) {
                     <h3 className="font-semibold">Scope: Latest N Draws</h3>
                     <div className="flex items-center gap-3">
                         <div className="text-sm text-slate-600 dark:text-slate-400">
-                            Showing <b>{clamped.toLocaleString()}</b> of {draws.length.toLocaleString()} draws • {fromDate} → {toDate}
+                            Showing <b>{clamped.toLocaleString()}</b> of{" "}
+                            {sortedAsc.length.toLocaleString()} draws • {fromDate} → {toDate}
                         </div>
                         <SettingsGear />
                     </div>
@@ -147,19 +172,19 @@ function PreviewBody({ draws }: { draws: Draw[] }) {
                     <input
                         type="range"
                         min={1}
-                        max={draws.length}
+                        max={sortedAsc.length}
                         value={clamped}
                         onChange={(e) => setN(parseInt(e.target.value, 10))}
                         className="w-full"
                     />
                     <span className="text-xs text-slate-500 dark:text-slate-400 w-14 text-right">
-                        {draws.length.toLocaleString()}
-                    </span>
+            {sortedAsc.length.toLocaleString()}
+          </span>
                     <input
                         type="number"
                         className="card px-3 py-2 w-24"
                         min={1}
-                        max={draws.length}
+                        max={sortedAsc.length}
                         value={clamped}
                         onChange={(e) => setN(parseInt(e.target.value || "1", 10))}
                         title="Set exact number of latest draws"
@@ -167,15 +192,24 @@ function PreviewBody({ draws }: { draws: Draw[] }) {
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(50)}>Last 50</button>
-                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(100)}>Last 100</button>
-                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(250)}>Last 250</button>
-                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(draws.length)}>All</button>
+                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(50)}>
+                        Last 50
+                    </button>
+                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(100)}>
+                        Last 100
+                    </button>
+                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(250)}>
+                        Last 250
+                    </button>
+                    <button className="btn btn-ghost px-2 py-1" onClick={() => setN(sortedAsc.length)}>
+                        All
+                    </button>
                 </div>
             </div>
 
             {/* SMART PICKS */}
             <SmartPicks draws={recentDraws} />
+
             {/* BASE PANELS (respect toggles) */}
             {flags.topMain && <TopMainNumbersChart draws={recentDraws} />}
             {flags.euroNumbers && <EuroNumbersChart draws={recentDraws} />}
@@ -223,3 +257,4 @@ export function AnalyticsPreview() {
     // Providers are global now (in Providers.tsx), so just render the body
     return <PreviewBody draws={draws} />;
 }
+// END OF FILE: apps/web/src/components/AnalyticsPreview.tsx
