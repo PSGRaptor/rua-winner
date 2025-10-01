@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "./DataContext";
+import { SmartPicks } from "./SmartPicks";
+
 import {
     computeMainFrequencies,
     computeEuroFrequencies,
@@ -151,8 +153,8 @@ function PreviewBody({ draws }: { draws: Draw[] }) {
                         className="w-full"
                     />
                     <span className="text-xs text-slate-500 dark:text-slate-400 w-14 text-right">
-            {draws.length.toLocaleString()}
-          </span>
+                        {draws.length.toLocaleString()}
+                    </span>
                     <input
                         type="number"
                         className="card px-3 py-2 w-24"
@@ -172,6 +174,8 @@ function PreviewBody({ draws }: { draws: Draw[] }) {
                 </div>
             </div>
 
+            {/* SMART PICKS */}
+            <SmartPicks draws={recentDraws} />
             {/* BASE PANELS (respect toggles) */}
             {flags.topMain && <TopMainNumbersChart draws={recentDraws} />}
             {flags.euroNumbers && <EuroNumbersChart draws={recentDraws} />}

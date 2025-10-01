@@ -6,7 +6,7 @@ import { useData } from "./DataContext";
 import type { Draw, PrizeClass } from "@rua-winner/core";
 import { Upload } from "lucide-react";
 
-// Expected columns (case-insensitive):
+// Expected columns (case-insensitive) for XLSX/CSV:
 // Datum (date), Z1..Z5, E1, E2, GKL1..GKL12
 type RawRow = Record<string, any>;
 
@@ -43,9 +43,7 @@ function parseRows(rows: RawRow[]): Draw[] {
 
     // helper to find a key among variants
     const findKey = (variants: string[]) => {
-        const idx = keys.find(
-            (k) => variants.includes(norm(k))
-        );
+        const idx = keys.find((k) => variants.includes(norm(k)));
         return idx ?? null;
     };
 
@@ -56,7 +54,7 @@ function parseRows(rows: RawRow[]): Draw[] {
             findKey(["z2", "m2", "n2"]),
             findKey(["z3", "m3", "n3"]),
             findKey(["z4", "m4", "n4"]),
-            findKey(["z5", "m5", "n5"])
+            findKey(["z5", "m5", "n5"]),
         ],
         e: [findKey(["e1", "zz1", "euro1"]), findKey(["e2", "zz2", "euro2"])],
         g: [
@@ -71,8 +69,8 @@ function parseRows(rows: RawRow[]): Draw[] {
             findKey(["gkl9", "class9", "g9"]),
             findKey(["gkl10", "class10", "g10"]),
             findKey(["gkl11", "class11", "g11"]),
-            findKey(["gkl12", "class12", "g12"])
-        ]
+            findKey(["gkl12", "class12", "g12"]),
+        ],
     };
 
     if (!col.date) throw new Error("Missing date column (Datum/Date/DrawDate).");
@@ -89,7 +87,7 @@ function parseRows(rows: RawRow[]): Draw[] {
             Number(r[col.z[1] as string]),
             Number(r[col.z[2] as string]),
             Number(r[col.z[3] as string]),
-            Number(r[col.z[4] as string])
+            Number(r[col.z[4] as string]),
         ] as [number, number, number, number, number];
 
         const e = [Number(r[col.e[0] as string]), Number(r[col.e[1] as string])] as [number, number];
@@ -99,7 +97,10 @@ function parseRows(rows: RawRow[]): Draw[] {
             const key = col.g[i];
             if (key && r[key] != null && r[key] !== "") {
                 const klass = (i + 1) as PrizeClass;
-                const val = typeof r[key] === "string" ? Number(String(r[key]).replace(/[^\d.,-]/g, "").replace(",", ".")) : Number(r[key]);
+                const val =
+                    typeof r[key] === "string"
+                        ? Number(String(r[key]).replace(/[^\d.,-]/g, "").replace(",", "."))
+                        : Number(r[key]);
                 if (!Number.isNaN(val)) gkl[klass] = val;
             }
         }
@@ -127,11 +128,40 @@ export function DataImporter() {
     const [error, setError] = useState<string | null>(null);
     const [summary, setSummary] = useState<{ min: string; max: string; rows: number } | null>(null);
 
+    async function parseParquetOnServer(file: File) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/parse-parquet", { method: "POST", body: fd });
+        if (!res.ok) {
+            const msg = await res.text().catch(() => res.statusText);
+            throw new Error(`Parquet parse failed: ${msg}`);
+        }
+        const { draws } = (await res.json()) as { draws: Draw[] };
+        return draws;
+    }
+
     const handleFile = async (file: File) => {
         try {
             setStatus("reading");
             setError(null);
 
+            const lower = file.name.toLowerCase();
+
+            // --- NEW: local parquet path (server parses and normalizes) ---
+            if (lower.endsWith(".parquet")) {
+                const parsed = await parseParquetOnServer(file);
+                const min = parsed[0]?.drawDate ?? "";
+                const max = parsed[parsed.length - 1]?.drawDate ?? "";
+
+                setDraws(parsed);
+                setVersion(max || new Date().toISOString().slice(0, 10));
+                setLoadedFrom("local-file");
+                setSummary({ min, max, rows: parsed.length });
+                setStatus("parsed");
+                return;
+            }
+
+            // --- Existing XLSX/XLS/CSV path (unchanged) ---
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(buf, { type: "array" });
             const sheetName = wb.SheetNames[0];
@@ -141,6 +171,7 @@ export function DataImporter() {
             const parsed = parseRows(rows);
             const min = parsed[0]?.drawDate ?? "";
             const max = parsed[parsed.length - 1]?.drawDate ?? "";
+
             setDraws(parsed);
             setVersion(max || new Date().toISOString().slice(0, 10));
             setLoadedFrom("local-file");
@@ -158,19 +189,25 @@ export function DataImporter() {
                 <button
                     className="btn btn-primary"
                     onClick={() => inputRef.current?.click()}
-                    title="Import EuroJackpot data from a local .xlsx or .csv file"
+                    title="Import EuroJackpot data from a local .parquet, .xlsx or .csv file"
                 >
                     <Upload className="w-4 h-4" />
                     Import local data
                 </button>
                 <div className="text-sm text-slate-600 dark:text-slate-400">
-                    {status === "idle" && (draws.length
-                            ? <>Loaded <b>{draws.length}</b> rows (v{version}) from local storage.</>
-                            : <>No data loaded yet. Import a .xlsx or .csv.</>
-                    )}
+                    {status === "idle" &&
+                        (draws.length ? (
+                            <>
+                                Loaded <b>{draws.length}</b> rows (v{version}) from local storage.
+                            </>
+                        ) : (
+                            <>No data loaded yet. Import a .parquet, .xlsx or .csv.</>
+                        ))}
                     {status === "reading" && "Reading file…"}
                     {status === "parsed" && summary && (
-                        <>Imported <b>{summary.rows}</b> rows • {summary.min} → {summary.max} (v{version})</>
+                        <>
+                            Imported <b>{summary.rows}</b> rows • {summary.min} → {summary.max} (v{version})
+                        </>
                     )}
                     {status === "error" && <span className="text-red-600">Error: {error}</span>}
                 </div>
@@ -179,7 +216,7 @@ export function DataImporter() {
             <input
                 ref={inputRef}
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".parquet,.xlsx,.xls,.csv"
                 className="hidden"
                 onChange={(e) => {
                     const f = e.target.files?.[0];
