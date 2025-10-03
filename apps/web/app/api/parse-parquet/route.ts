@@ -1,8 +1,11 @@
-// START OF FILE: apps/web/src/app/api/parse-parquet/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ParquetReader } from "parquetjs-lite";
 
-// Keep types in-line to avoid importing new helpers/files
+// Ensure Node runtime for parquetjs-lite & Buffer
+export const runtime = "nodejs";
+// Avoid caching — we parse uploads dynamically
+export const dynamic = "force-dynamic";
+
 type PrizeClass = 1|2|3|4|5|6|7|8|9|10|11|12;
 type Draw = {
     drawDate: string;
@@ -11,18 +14,14 @@ type Draw = {
     gkl: Record<PrizeClass, number>;
 };
 
-// --- Robust EU-currency / numeric parser ---
 function parseEuroLike(v: unknown): number {
     if (typeof v === "number" && Number.isFinite(v)) return v;
     if (v == null) return 0;
     let s = String(v).trim();
     if (!s) return 0;
-    // remove € and spaces (incl NBSP & thin)
     s = s.replace(/[€\s\u00A0\u202F]/g, "");
-    // if both , and . exist, assume , were thousands
     if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, "");
     else if (s.includes(",") && !s.includes(".")) s = s.replace(",", ".");
-    // strip everything but digits, sign, dot
     s = s.replace(/[^\d.\-]/g, "");
     const n = Number(s);
     return Number.isFinite(n) ? n : 0;
@@ -47,7 +46,6 @@ function toISODate(d: unknown): string {
         }
     }
     if (typeof d === "number" && Number.isFinite(d)) {
-        // Excel serial date → ISO (1900 system)
         const base = new Date(Date.UTC(1899, 11, 30));
         const dt = new Date(base.getTime() + d * 86400000);
         const y = dt.getUTCFullYear();
@@ -59,7 +57,6 @@ function toISODate(d: unknown): string {
 }
 
 function buildGkl(row: Record<string, any>): Record<PrizeClass, number> {
-    // Prefer compact JSON map if provided by converter
     const gj = row["gkl_json"] ?? row["GKL_JSON"] ?? row["GklJson"] ?? row["Gkl_JSON"];
     if (gj) {
         try {
@@ -69,12 +66,8 @@ function buildGkl(row: Record<string, any>): Record<PrizeClass, number> {
                 out[k] = parseEuroLike(parsed[String(k)]);
             }
             return out;
-        } catch {
-            // fall through to column-based mapping
-        }
+        } catch { /* fall through */ }
     }
-
-    // Map GKL1..GKL12 (accept common variations)
     const out = {} as Record<PrizeClass, number>;
     for (let k = 1 as PrizeClass; k <= 12; k = (k + 1) as PrizeClass) {
         const variants = [
@@ -141,7 +134,6 @@ export async function POST(req: NextRequest) {
         }
         const buf = Buffer.from(await file.arrayBuffer());
 
-        // Read Parquet rows
         const reader = await ParquetReader.openBuffer(buf);
         const cursor = await reader.getCursor();
         const rows: any[] = [];
@@ -150,10 +142,7 @@ export async function POST(req: NextRequest) {
         }
         await reader.close();
 
-        // Normalize to Draws (including € gkl map)
         const draws = rows.map(rowToDraw).filter(isValidDraw);
-
-        // Sort ascending by date to keep app semantics stable
         draws.sort((a, b) => a.drawDate.localeCompare(b.drawDate));
 
         return NextResponse.json({ draws, count: draws.length }, { status: 200 });
@@ -162,4 +151,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: e?.message || "Failed to parse parquet" }, { status: 500 });
     }
 }
-// END OF FILE: apps/web/src/app/api/parse-parquet/route.ts

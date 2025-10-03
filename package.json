@@ -1,6 +1,6 @@
 {
   "name": "rua-winner",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "private": true,
   "packageManager": "pnpm@9.7.0",
   "engines": {

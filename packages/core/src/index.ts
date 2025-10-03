@@ -36,7 +36,7 @@ export function evaluateNumbers(
     draws: Draw[],
     userMain: [number, number, number, number, number],
     userEuro: [number, number]
-): EvaluationResult {
+) {
     const mainSet = new Set(userMain);
     const euroSet = new Set(userEuro);
 
@@ -67,5 +67,6 @@ export function evaluateNumbers(
     return { classHits, classTotals, grandTotal, bestClass, wins };
 }
 
-// --- analytics helpers ---
+// Re-export analytics & heatmap helpers for consumers
 export * from "./analytics";
+export * from "./heatmap";
