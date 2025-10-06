@@ -1,6 +1,6 @@
 {
   "name": "rua-winner",
-  "version": "0.0.8",
+  "version": "0.0.11",
   "private": true,
   "packageManager": "pnpm@9.7.0",
   "engines": {
@@ -15,11 +15,16 @@
     "release:major": "standard-version --release-as major",
     "release:minor": "standard-version --release-as minor",
     "release:patch": "standard-version --release-as patch",
-
     "postinstall": "electron-builder install-app-deps",
     "pack:win": "electron-builder --win portable",
     "dist:win": "electron-builder --win nsis",
-    "dist:dir": "electron-builder --dir"
+    "dist:dir": "electron-builder --dir",
+    "build:core": "pnpm -C packages/core build",
+    "dev:web": "pnpm -C apps/web dev",
+    "build:web": "pnpm -C apps/web build",
+    "export:web": "pnpm -C apps/web export",
+    "dev:desktop": "pnpm -C apps/desktop dev",
+    "build:desktop": "pnpm -C apps/desktop build"
   },
   "devDependencies": {
     "@types/node": "20.14.10",

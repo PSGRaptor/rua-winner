@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ParquetReader } from "parquetjs-lite";
 
-// Ensure Node runtime for parquetjs-lite & Buffer
-export const runtime = "nodejs";
-// Avoid caching — we parse uploads dynamically
-export const dynamic = "force-dynamic";
+const IS_DESKTOP = process.env.NEXT_PUBLIC_DESKTOP === "1";
 
 type PrizeClass = 1|2|3|4|5|6|7|8|9|10|11|12;
 type Draw = {

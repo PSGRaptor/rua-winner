@@ -1,0 +1,32 @@
+{
+  "package": { "productName": "RUA Winner", "version": "0.0.11" },
+  "build": {
+    "beforeDevCommand": "pnpm -C ../../apps/web dev -p 3000",
+    "beforeBuildCommand": "pnpm -C ../../packages/core build && pnpm -C ../../apps/web build",
+    "devPath": "http://localhost:3000",
+    "distDir": "../../web/out"
+  },
+  "tauri": {
+    "windows": [
+      { "title": "RUA Winner", "width": 1280, "height": 800, "resizable": true }
+    ],
+    "bundle": {
+      "active": true,
+      "identifier": "com.psgraptor.ruawinner",
+      "targets": ["nsis"],
+      "icon": ["icons/icon.ico", "icons/icon.png"],
+      "windows": {
+        "nsis": {
+          "installMode": "both"
+        }
+      }
+    },
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "endpoints": ["https://YOUR_UPDATE_SERVER/rua-winner-updates.json"],
+      "pubkey": "YOUR_TAURI_UPDATER_PUBLIC_KEY_BASE64"
+    },
+    "security": { "csp": null }
+  }
+}

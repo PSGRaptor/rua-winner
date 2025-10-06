@@ -7,6 +7,8 @@ import { useData } from "./DataContext";
 import type { Draw, PrizeClass } from "@rua-winner/core";
 import { Upload } from "lucide-react";
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+
 // Expected columns (case-insensitive) for XLSX/CSV:
 // Datum (date), Z1..Z5, E1, E2, GKL1..GKL12
 type RawRow = Record<string, any>;
@@ -160,12 +162,30 @@ export function DataImporter() {
     async function parseParquetOnServer(file: File) {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch("/api/parse-parquet", { method: "POST", body: fd });
+
+        const endpoint = `${API_BASE}/api/parse-parquet`;
+        const res = await fetch(endpoint, { method: "POST", body: fd });
+
         if (!res.ok) {
             const msg = await res.text().catch(() => res.statusText);
-            throw new Error(`Parquet parse failed: ${msg}`);
+            throw new Error(
+                `Parquet parse failed (${res.status} ${res.statusText}) at ${endpoint}: ${msg}`
+            );
         }
-        // We expect { draws: Draw[] }, but we normalize just in case server sends strings in gkl.
+
+        // Guard against static HTML being returned (desktop bundle without a real API)
+        const ct = res.headers.get("content-type") || "";
+        if (!/application\/json|\+json/i.test(ct)) {
+            const text = await res.text().catch(() => "");
+            const isHtml =
+                ct.includes("text/html") || /^\s*<!DOCTYPE html>/i.test(text || "");
+            const hint = isHtml
+                ? "Received HTML instead of JSON. In the desktop build, set NEXT_PUBLIC_API_BASE to a server that exposes /api/parse-parquet, or switch to an offline Tauri parser."
+                : `Unexpected content-type: ${ct}`;
+            throw new Error(`Parquet parse failed: ${hint}`);
+        }
+
+        // We expect { draws: Draw[] }, but we normalize just in case.
         const payload = (await res.json()) as { draws: any[] };
         return payload.draws.map(normalizeReturnedDraw) as Draw[];
     }

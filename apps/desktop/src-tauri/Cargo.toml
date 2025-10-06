@@ -1,0 +1,20 @@
+[package]
+name = "rua-winner-desktop"
+version = "0.0.11"
+description = "RUA Winner Desktop"
+authors = ["PSGRaptor"]
+edition = "2021"
+license = "MIT"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = [ "updater"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
