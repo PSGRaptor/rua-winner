@@ -1,6 +1,6 @@
 [package]
 name = "rua-winner-desktop"
-version = "0.0.11"
+version = "0.0.12"
 description = "RUA Winner Desktop"
 authors = ["PSGRaptor"]
 edition = "2021"
