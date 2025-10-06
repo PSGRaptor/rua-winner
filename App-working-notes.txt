@@ -1,0 +1,37 @@
+Running Local dev (recommended)
+
+Uses the built-in API route, so parquet import works.
+# from repo root
+pnpm install
+pnpm -C packages/core build
+pnpm -C apps/web dev -p 3000
+Open: http://localhost:3000
+_________________________________________________________
+
+Production-like server test
+
+Build once, then run the Node server (API included).
+pnpm -C packages/core build
+# build without the export toggle so it runs as a server:
+# (no need to set NEXT_DESKTOP_EXPORT here)
+pnpm -C apps/web build
+pnpm -C apps/web start -p 3000
+
+
+_________________________________________________________
+
+Static export preview (matches desktop bundle behavior)
+
+Static export has no API, so point the UI to a server for /api/parse-parquet.
+The easiest is to run the dev server as the API and serve the static files separately.
+
+Terminal A – start API server on 3000
+pnpm -C apps/web dev -p 3000
+
+Terminal B – build with API base baked in, then serve static
+$env:NEXT_PUBLIC_API_BASE="http://localhost:3000"
+pnpm -C packages/core build
+pnpm -C apps/web build    # writes apps/web/out
+npx --yes serve apps/web/out -l 8080
+Open: http://localhost:8080
+(Your UI loads from the static export, while API calls go to the dev server on 3000.)

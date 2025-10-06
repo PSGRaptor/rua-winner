@@ -9,10 +9,16 @@ export type AboutModalProps = {
     onClose: () => void;
 };
 
+/**
+ * Version comes from root/package.json via NEXT_PUBLIC_APP_VERSION.
+ * We still keep a very defensive fallback for safety.
+ */
 const APP_VERSION =
-    process.env.NEXT_PUBLIC_APP_VERSION ??
-    (typeof window !== "undefined" && (window as any).__APP_VERSION__) ??
-    "v0.0.9";
+    (process.env.NEXT_PUBLIC_APP_VERSION as string | undefined)?.trim() ||
+    (typeof window !== "undefined" &&
+        (window as any).__APP_VERSION__ &&
+        String((window as any).__APP_VERSION__).trim()) ||
+    "v0.0.0";
 
 export function AboutModal({ open, onClose }: AboutModalProps) {
     // Close on ESC
@@ -40,8 +46,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             <div className="relative mx-4 w-full max-w-xl rounded-2xl border border-slate-200/70 bg-white shadow-xl dark:border-slate-700/60 dark:bg-slate-900">
                 <div className="flex items-start gap-3 border-b border-slate-200/70 p-4 dark:border-slate-700/60">
                     <div className="shrink-0 rounded-lg bg-slate-100 p-2 dark:bg-slate-800">
-                        {/* Uses /icon.ico in /public (see note below). Gracefully no-op if not present */}
-                        {/* We keep width/height tiny so the ICO renders crisply */}
+                        {/* Uses /icon.png in /public */}
                         <Image
                             src="/icon.png"
                             alt="RUA Winner"
@@ -51,7 +56,10 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
                         />
                     </div>
                     <div className="min-w-0">
-                        <h3 className="truncate text-lg font-semibold"><br/>RUA Winner</h3>
+                        <h3 className="truncate text-lg font-semibold">
+                            <br />
+                            RUA Winner
+                        </h3>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
                             All-in-one analysis suite to help you evaluate EuroJackpot data.
                         </p>
@@ -94,7 +102,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
                     </div>
 
                     <a
-                        href="https://github.com/"
+                        href="https://github.com/PSGRaptor/rua-winner"
                         target="_blank"
                         rel="noreferrer"
                         className="card p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"

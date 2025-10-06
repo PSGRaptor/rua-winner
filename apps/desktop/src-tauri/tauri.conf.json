@@ -2,7 +2,7 @@
   "package": { "productName": "RUA Winner", "version": "0.0.11" },
   "build": {
     "beforeDevCommand": "pnpm -C ../../apps/web dev -p 3000",
-    "beforeBuildCommand": "pnpm -C ../../packages/core build && pnpm -C ../../apps/web build",
+    "beforeBuildCommand": "set NEXT_DESKTOP_EXPORT=1 && set NEXT_PUBLIC_API_BASE=http://localhost:3000 && pnpm -C ../../packages/core build && pnpm -C ../../apps/web build",
     "devPath": "http://localhost:3000",
     "distDir": "../../web/out"
   },

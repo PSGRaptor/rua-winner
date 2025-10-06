@@ -6,7 +6,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_PKG = path.resolve(__dirname, '..', '..', 'package.json');
-
 let APP_VERSION = 'v0.0.0';
 try {
     const raw = fs.readFileSync(ROOT_PKG, 'utf8');
@@ -14,10 +13,12 @@ try {
     if (parsed?.version) APP_VERSION = `v${parsed.version}`;
 } catch {}
 
+const isDesktopExport = process.env.NEXT_DESKTOP_EXPORT === '1';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'export',           // writes to apps/web/out
-    images: { unoptimized: true },
+    // Only export when building the desktop bundle
+    ...(isDesktopExport ? { output: 'export', images: { unoptimized: true } } : {}),
     reactStrictMode: true,
     webpack: (config, { webpack }) => {
         config.plugins ??= [];
