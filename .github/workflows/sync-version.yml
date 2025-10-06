@@ -3,7 +3,7 @@ name: Sync versions on push
 on:
   push:
     branches:
-      - main
+      - master
       # add more branches if you want this on others
 
 permissions:
